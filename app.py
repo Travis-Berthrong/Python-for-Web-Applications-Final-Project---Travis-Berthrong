@@ -1,7 +1,6 @@
 from flask import Flask, url_for, redirect
 from dotenv import load_dotenv
 import os
-from flask_login import LoginManager
 
 load_dotenv()
 app = Flask(__name__)
@@ -16,4 +15,6 @@ def index():
 if __name__ == '__main__':
     from authentication import authentication
     app.register_blueprint(authentication)
+    from clients import clients
+    app.register_blueprint(clients)
     app.run(debug=True)

@@ -1,5 +1,5 @@
 import sqlite3
-from flask import g, render_template, redirect, url_for, flash, session, request
+from flask import g, render_template, redirect, url_for, flash, session
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError
@@ -121,7 +121,7 @@ def login():
     if current_user.is_authenticated:
         if current_user.is_driver:
             return redirect(url_for('drivers.home'))
-        return redirect(url_for('clients.home'))
+        #return redirect(url_for('clients.home'))
     return render_template('login.html')
 
 @authentication.route('/login/client', methods=['GET', 'POST'])
