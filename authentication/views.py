@@ -42,7 +42,7 @@ def load_user(user_id):
 def get_db():
     db = getattr(g, '_database', None)
     if db is None:
-        db = g._users_database = sqlite3.connect('./uber_application.db')
+        db = g._database = sqlite3.connect('./uber_application.db')
         create_clients_table(db)
         create_drivers_table(db)
     return db
@@ -60,7 +60,6 @@ def create_drivers_table(db):
     cursor.execute('CREATE TABLE IF NOT EXISTS drivers (id INTEGER PRIMARY KEY, username TEXT, password TEXT, email TEXT, first_name TEXT, last_name TEXT, phone_number TEXT, vehicle TEXT, license_plate TEXT, available BOOLEAN)')
     db.commit()
     cursor.close()
-
 
 def unique_username(form, field):
     db = get_db()
@@ -120,7 +119,7 @@ If the form is valid, the user is logged in and redirected to the home page."""
 def login():
     if current_user.is_authenticated:
         if current_user.is_driver:
-            return redirect(url_for('drivers.home'))
+            return redirect(url_for('drivers.driver_home'))
         #return redirect(url_for('clients.home'))
     return render_template('login.html')
 
@@ -128,7 +127,7 @@ def login():
 def client_login():
     if current_user.is_authenticated:
         if current_user.is_driver:
-            return redirect(url_for('drivers.home'))
+            return redirect(url_for('drivers.driver_home'))
         return redirect(url_for('clients.home'))
     
     form = LoginForm()
@@ -155,7 +154,7 @@ def client_login():
 def driver_login():
     if current_user.is_authenticated:
         if current_user.is_driver:
-            return redirect(url_for('drivers.home'))
+            return redirect(url_for('drivers.driver_home'))
         return redirect(url_for('clients.home'))
     
     form = LoginForm()
@@ -166,14 +165,16 @@ def driver_login():
         cursor = db.cursor()
         cursor.execute('SELECT * FROM drivers WHERE username = ? AND password = ?', (username, password))
         user = cursor.fetchone()
-        cursor.close()
         if user:
             user_obj = User(user[0], user[1], user[2], user[3], is_driver=True)
             session['is_driver'] = True
+            # set driver availability to true
+            cursor.execute('UPDATE drivers SET available = True WHERE id = ?', (user[0],))
             login_user(user_obj)
-            return redirect(url_for('drivers.home'))
+            return redirect(url_for('drivers.driver_home'))
         else:
             flash('Invalid username or password', 'danger')
+        cursor.close()
     return render_template('driver_login.html', form=form)
 
 @authentication.route('/sign_up/client', methods=['GET', 'POST'])
@@ -218,7 +219,7 @@ def driver_sign_up():
         if current_user:
             flash('User already exists', 'danger')
         else:
-            cursor.execute('INSERT INTO drivers (username, password, email, first_name, last_name, phone_number, vehicle, license_plate, available) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', (username, password, email, first_name, last_name, phone_number, vehicle, license_plate, True))
+            cursor.execute('INSERT INTO drivers (username, password, email, first_name, last_name, phone_number, vehicle, license_plate, available) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', (username, password, email, first_name, last_name, phone_number, vehicle, license_plate, False))
             db.commit()
             cursor.close()
             flash('User added successfully', 'success')
@@ -231,5 +232,12 @@ def driver_sign_up():
 @authentication.route('/logout')
 @login_required
 def logout():
+    if session.get('is_driver', False):
+        # set driver availability to false
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute('UPDATE drivers SET available = False WHERE id = ?', (current_user.id,))
+        cursor.close()
+        session.pop('is_driver')
     logout_user()
     return redirect(url_for('authentication.login'))

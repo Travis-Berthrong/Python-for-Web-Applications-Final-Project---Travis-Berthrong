@@ -16,21 +16,11 @@
             // Try HTML5 geolocation.
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(function (position) {
-                    var latlng = [position.coords.latitude, position.coords.longitude];
-                    $.ajax({
-                        type: "POST",
-                        url: "{{ url_for('clients.receive_location') }}",
-                        contentType: "application/json",
-                        data: JSON.stringify({ location: { lat: latlng[0], lng: latlng[1] } }),
-                        dataType: "json",
-                        success: function (response) {
-                            console.log(response);
-                            location.reload();
-                        },
-                        error: function (err) {
-                            console.log(err);
-                        }
-                    });
+                    var pos = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    };
+                    sendLocation(pos.lat, pos.lng);
                 }, function () {
                     handleLocationError(true);
                 });
@@ -42,10 +32,94 @@
         
         function handleLocationError(browserHasGeolocation) {
             if (browserHasGeolocation) {
-                alert("Please allow geolocation access.");
+                console.log("The Geolocation service failed.");
             } else {
-                console.log("Your browser doesn't support geolocation.");
+                console.log("Browser doesn't support geolocation.");
             }
+            var pos = {
+                lat: parseFloat("{{ default_location[0] }}"),
+                lng: parseFloat("{{ default_location[1] }}")
+            };
+            console.log("Using default position: " + pos);
+            sendLocation(pos.lat, pos.lng);
+        }
+
+        function sendLocation(lat, lng) {
+            $.ajax({
+                type: "POST",
+                url: "{{ url_for('clients.receive_location') }}",
+                contentType: "application/json",
+                data: JSON.stringify({ location: { lat: lat, lng: lng } }),
+                dataType: "json",
+                success: function (response) {
+                    console.log(response);
+                    location.reload();
+                },
+                error: function (err) {
+                    console.log(err);
+                }
+            });
+        }
+
+        function sendDestination() {
+            var lat = document.getElementById("destination_lat").value;
+            var lng = document.getElementById("destination_lng").value;
+            if (lat == "" || lng == "") {
+                alert("Please enter a valid destination");
+                return;
+            }
+            $.ajax({
+                type: "POST",
+                url: "{{ url_for('clients.receive_destination') }}",
+                contentType: "application/json",
+                data: JSON.stringify({ destination: { lat: lat, lng: lng } }),
+                dataType: "json",
+                success: function (response) {
+                    console.log(response);
+                    id = response["id"];
+                    document.getElementById("obj_id").value = id;
+                    displayAdditionalInfoForm();
+                },
+                error: function (err) {
+                    console.log(err);
+                }
+            });
+        }
+
+        function displayAdditionalInfoForm() {
+            var additional_info_form = document.getElementsByClassName("additional_info_form")[0];
+            additional_info_form.style.display = "block";
+        }
+
+        function hideAdditionalInfoForm() {
+            var additional_info_form = document.getElementsByClassName("additional_info_form")[0];
+            additional_info_form.style.display = "none";
+        }
+
+        function sendAdditionalInfo() {
+            var id = document.getElementById("obj_id").value;
+            var vehicle_type = document.getElementById("vehicle_type").value;
+            var number_of_passengers = document.getElementById("number_of_passengers").value;
+            var departure_time = document.getElementById("departure_time").value;
+            if (vehicle_type == "" || number_of_passengers == "" || departure_time == "") {
+                alert("Please fill all the fields");
+                return;
+            }
+            $.ajax({
+                type: "POST",
+                url: "{{ url_for('clients.receive_additional_info') }}",
+                contentType: "application/json",
+                data: JSON.stringify({ additional_info: { obj_id: id, vehicle_type: vehicle_type, number_of_passengers: number_of_passengers, departure_time: departure_time } }),
+                dataType: "json",
+                success: function (response) {
+                    console.log(response);
+                    hideAdditionalInfoForm();
+                    window.location.href = "{{ url_for('clients.waiting_page') }}";
+                },
+                error: function (err) {
+                    console.log(err);
+                }
+            });
         }
     </script>
 <body>
@@ -60,21 +134,49 @@
                 {% endfor %}
             {% endif %}
         {% endwith %}
-        <form method="POST" action="/client_destination">
+        <form action="javascript:;" onsubmit="sendDestination()">
             <div class="form-group mt-2">
-                <input type="text" name="destination_lat" class="form-control" placeholder="Enter destination latitude">
-                <input type="text" name="destination_lng" class="form-control" placeholder="Enter destination longitude">
+                <input type="text" name="destination_lat"  id="destination_lat" class="form-control" placeholder="Enter destination latitude">
+                <input type="text" name="destination_lng" id="destination_lng" class="form-control" placeholder="Enter destination longitude">
                 <input type="submit" class="btn btn-outline-info" value="Submit">
             </div>
+        </form>
+        <div class="form-group mt-2 mb-5 additional_info_form" style="display: none;">
+            <form action="javascript:;" onsubmit="sendAdditionalInfo()">
+                <input type="hidden" name="obj_id" id="obj_id" value="">
+                <label for="vehicle_type">Select your vehicle type:</label>
+                <select class="form-select" name="vehicle_type" id="vehicle_type" aria-label="Select your vehicle type">
+                    <option selected value="car">Car</option>
+                    <option value="van">Van</option>
+                    <option value="horse">Horse-drawn Carriage</option>
+                </select>
+                <label for="number_of_passengers">Select the number of passengers:</label>
+                <select name="number_of_passengers" id="number_of_passengers" class="form-select" aria-label="Select the number of passengers">
+                    <option selected value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="4">4</option>
+                </select>
+                <label for="departure_time">Select your departure time:</label>
+                <script>
+                    var today = new Date();
+                    var time = today.getHours() + ":" + today.getMinutes();
+                    document.write('<input type="time" class="form-control" id="departure_time" name="departure_time" value="' + time + '">');
+                </script>
+                <input type="submit" class="btn btn-outline-info" value="Submit">
+            </form>
+        </div>
 
-    <div id="map" style="width: 600px; justify-content: center" >
+
+
+    </div>
+
+    <div id="map" style="width: 600px;" >
         {% if not fetched_location %}
             <script>
             fetchLocation();
             </script>
         {% endif %}
         {{ map|safe}}
-    </div>
     </div>
 </body>
 </html>
