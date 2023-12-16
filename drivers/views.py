@@ -1,15 +1,17 @@
+import datetime
 from flask import Flask, render_template, url_for, redirect, request, session, jsonify, g
+from flask_socketio import emit, join_room
 import folium
 from flask_login import login_required, current_user
 from dotenv import load_dotenv
 import os
 from pymongo import MongoClient
-from datetime import datetime
-import math
 from bson import ObjectId
 import sqlite3
+from folium.elements import JavascriptLink, Element
 
 from . import drivers
+from app import socketio
 
 load_dotenv()
 
@@ -34,7 +36,7 @@ def driver_home():
     cursor.execute('SELECT vehicle FROM drivers WHERE id=?', (current_user.id,))
     vehicle_type = cursor.fetchone()[0]
 
-    driver_location = session.get('driver_location')
+    driver_location = session.get('driver_location', None)
     if not driver_location:
         sent_location = False
         driver_location = default_location
@@ -42,8 +44,34 @@ def driver_home():
         sent_location = True
 
     map = folium.Map(location=driver_location, zoom_start=15)
+    map.get_root().html.add_child(JavascriptLink("https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"))
+    accept_order_js = Element(
+        """
+        <script>
+        function acceptOrder(order_id) {
+            console.log("Accepting order: " + order_id);
+            $.ajax({
+                type: "POST",
+                url: "/accept_order",
+                contentType: "application/json",
+                data: JSON.stringify({ order_id: order_id }),
+                dataType: "json",
+                success: function (response) {
+                    console.log(response);
+                    window.location.href = "/driver_ongoing_ride/" + order_id;
+                },
+                error: function (err) {
+                    console.log(err);
+                }
+            });
+        };
+        </script>
+    """)
+    map.get_root().html.add_child(accept_order_js)
     pending_orders = active_orders.find({'status': 'waiting', 'vehicle_type': vehicle_type})
+    num_orders = 0
     for order in pending_orders:
+        num_orders += 1
         origin = order['origin']
         destination = order['destination']
         distance = order['distance']
@@ -51,32 +79,66 @@ def driver_home():
         id = str(order['_id'])
         #create a marker to display the order details on the map
         order_marker_html = f"""
-            <form action='/accept_order' method='POST'>
+            <form action="javascript:;" onsubmit="acceptOrder(\'{id}\')">
                 <input type='hidden' name='order_id' value='{id}'>
                 <strong>Pickup location: </strong>{origin[0]}, {origin[1]}<br>
                 <strong>Destination: </strong>{destination[0]}, {destination[1]}<br>
                 <strong>Distance: </strong>{round(distance,2)}<br>
                 <strong>Price: </strong>{round(price,2)}<br>
-                <input type='submit' value='Accept'>
+                <input type="submit" value="Accept">
             </form>"""
         marker = folium.Marker(origin, popup=order_marker_html, tooltip='<strong>Awaiting order</strong>')
         marker.add_to(map)
 
     folium.Marker(driver_location, tooltip=f'<strong>Your location</strong><br>{driver_location[0]},{driver_location[1]}').add_to(map)
-    return render_template('driver_home.html', map=map._repr_html_(), sent_location=sent_location, default_location=default_location)
+    return render_template('driver_home.html', map=map._repr_html_(), sent_location=sent_location, default_location=default_location, driver_name=current_user.username, num_orders=num_orders)
 
-@drivers.route('/receive_location', methods=['POST'])
-def receive_location():
+@drivers.route('/receive_driver_location', methods=['POST'])
+def receive_driver_location():
     location = request.get_json()['location']
     session['driver_location'] = [location['lat'], location['lng']]
     return jsonify({'result': 'success'})
 
 @drivers.route('/accept_order', methods=['POST'])
 def accept_order():
-    obj_id = ObjectId(request.form.get('order_id'))
+    str_id = request.json.get('order_id')
+    obj_id = ObjectId(str_id)
     active_orders.update_one({'_id': obj_id}, {'$set': {
         'driver': current_user.id,
+        'driver_name': current_user.username,
         'status': 'accepted',
     }})
-    print('Order accepted')
-    return redirect(url_for('drivers.driver_home'))
+    return jsonify({'result': 'success'})
+
+@drivers.route('/driver_ongoing_ride/<order_id>')
+@login_required
+def driver_ongoing_ride(order_id):
+    obj_id = ObjectId(order_id)
+    order = active_orders.find_one({'_id': obj_id})
+    client_name = order['client_name']
+    origin = order['origin']
+    destination = order['destination']
+    distance = order['distance']
+    return render_template('driver_ongoing_ride.html', client_name=client_name, origin=origin, destination=destination, distance=distance, driver_name = current_user.username, order_id=order_id)
+
+@drivers.route('/end_ride', methods=['POST'])
+def end_ride():
+    str_id = request.get_json()['order_id']
+    obj_id = ObjectId(str_id)
+    active_orders.update_one({'_id': obj_id}, {'$set': {
+        'status': 'completed',
+        'completed_at': datetime.now()
+    }})
+    return jsonify({'result': 'success'})
+
+@drivers.route('/ride_summary/<str_order_id>')
+@login_required
+def ride_summary(str_order_id):
+    obj_id = ObjectId(str_order_id)
+    order = active_orders.find_one({'_id': obj_id})
+    client_name = order['client_name']
+    origin = order['origin']
+    destination = order['destination']
+    distance = order['distance']
+    price = order['price']
+    return render_template('ride_summary.html', client_name=client_name, origin=origin, destination=destination, distance=distance, price=price, driver_name=current_user.username)

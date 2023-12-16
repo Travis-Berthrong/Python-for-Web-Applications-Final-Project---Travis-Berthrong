@@ -54,6 +54,7 @@
                 success: function (response) {
                     console.log(response);
                     location.reload();
+                    location.href = "{{ url_for('clients.home') }}";
                 },
                 error: function (err) {
                     console.log(err);
@@ -114,7 +115,8 @@
                 success: function (response) {
                     console.log(response);
                     hideAdditionalInfoForm();
-                    window.location.href = "{{ url_for('clients.waiting_page') }}";
+                    response_id = response["id"];
+                    window.location.href = "/waiting_page/" + response_id;
                 },
                 error: function (err) {
                     console.log(err);
@@ -123,8 +125,18 @@
         }
     </script>
 <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('clients.home') }}">Client Home Page</a>
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('authentication.logout') }}">Log Out</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
     <div class="container mt-5">
-        <h2>Client Home Page</h2>
+        <h2 class="mb-4">Client Home Page</h2>
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -135,42 +147,43 @@
             {% endif %}
         {% endwith %}
         <form action="javascript:;" onsubmit="sendDestination()">
-            <div class="form-group mt-2">
-                <input type="text" name="destination_lat"  id="destination_lat" class="form-control" placeholder="Enter destination latitude">
-                <input type="text" name="destination_lng" id="destination_lng" class="form-control" placeholder="Enter destination longitude">
-                <input type="submit" class="btn btn-outline-info" value="Submit">
+            <div class="row">
+                <div class="col-md-6">
+                    <input type="text" name="destination_lat" id="destination_lat" class="form-control mb-2" placeholder="Enter destination latitude">
+                </div>
+                <div class="col-md-6">
+                    <input type="text" name="destination_lng" id="destination_lng" class="form-control mb-2" placeholder="Enter destination longitude">
+                </div>
             </div>
+            <input type="submit" class="btn btn-outline-info" value="Submit">
         </form>
         <div class="form-group mt-2 mb-5 additional_info_form" style="display: none;">
             <form action="javascript:;" onsubmit="sendAdditionalInfo()">
                 <input type="hidden" name="obj_id" id="obj_id" value="">
-                <label for="vehicle_type">Select your vehicle type:</label>
-                <select class="form-select" name="vehicle_type" id="vehicle_type" aria-label="Select your vehicle type">
+                <label for="vehicle_type" class="mb-2">Select your vehicle type:</label>
+                <select class="form-select mb-2" name="vehicle_type" id="vehicle_type" aria-label="Select your vehicle type">
                     <option selected value="car">Car</option>
                     <option value="van">Van</option>
                     <option value="horse">Horse-drawn Carriage</option>
                 </select>
-                <label for="number_of_passengers">Select the number of passengers:</label>
-                <select name="number_of_passengers" id="number_of_passengers" class="form-select" aria-label="Select the number of passengers">
+                <label for="number_of_passengers" class="mb-2">Select the number of passengers:</label>
+                <select name="number_of_passengers" id="number_of_passengers" class="form-select mb-2" aria-label="Select the number of passengers">
                     <option selected value="1">1</option>
                     <option value="2">2</option>
                     <option value="4">4</option>
                 </select>
-                <label for="departure_time">Select your departure time:</label>
+                <label for="departure_time" class="mb-2">Select your departure time:</label>
                 <script>
                     var today = new Date();
                     var time = today.getHours() + ":" + today.getMinutes();
-                    document.write('<input type="time" class="form-control" id="departure_time" name="departure_time" value="' + time + '">');
+                    document.write('<input type="time" class="form-control mb-2" id="departure_time" name="departure_time" value="' + time + '">');
                 </script>
                 <input type="submit" class="btn btn-outline-info" value="Submit">
             </form>
         </div>
-
-
-
     </div>
 
-    <div id="map" style="width: 600px;" >
+    <div id="map" class="container" style="width: 100%; max-width: 800px;">
         {% if not fetched_location %}
             <script>
             fetchLocation();

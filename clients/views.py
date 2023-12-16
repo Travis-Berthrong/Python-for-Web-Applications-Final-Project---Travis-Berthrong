@@ -1,4 +1,5 @@
-from flask import Flask, render_template, url_for, redirect, request, session, jsonify, g
+import json
+from flask import Flask, render_template, url_for, redirect, request, session, jsonify, g, current_app
 import folium
 from flask_login import login_required, current_user
 from dotenv import load_dotenv
@@ -9,6 +10,7 @@ import math
 from bson import ObjectId
 import sqlite3
 
+
 from . import clients
 
 load_dotenv()
@@ -17,7 +19,6 @@ db = MongoClient(os.getenv('MONGO_URI'))['uber']
 active_orders = db['active_orders']
 
 default_location = [os.getenv('DEFAULT_LAT'), os.getenv('DEFAULT_LNG')]
-
 
 def calculate_distance(origin, destination):
     lat1, lon1 = origin
@@ -79,8 +80,10 @@ def receive_destination():
     destination_lat = destination['lat']
     destination_lng = destination['lng']
     obj = active_orders.insert_one({
-        'client': current_user.id,
-        'driver': '',
+        'client_id': current_user.id,
+        'client_name': current_user.username,
+        'driver_id': '',
+        'driver_name': '',
         'vehicle_type': '',
         'departure_time': '',
         'number_of_passengers': '',
@@ -109,18 +112,35 @@ def receive_additional_info():
         'departure_time': departure_time,
         'price': price
     }})
-    return jsonify({'result': 'success'})
+    return jsonify({'result': 'success', 'id': str(obj_id)})
 
-@clients.route('/waiting_page')
+@clients.route('/waiting_page/<order_id>')
 @login_required
-def waiting_page():
+def waiting_page(order_id):
+    order = active_orders.find_one({'_id': ObjectId(order_id)})
+    order_origin = order['origin']
+    order_destination = order['destination']
+    order_vehicle_type = order['vehicle_type']
     db = get_db()
-    cursor = db.cursor()
-    cursor.execute('SELECT * FROM drivers WHERE available = True')
-    available_drivers = cursor.fetchall()
-    if len(available_drivers) > 0:
-        return render_template('waiting_page.html', available_drivers=available_drivers)
-    return render_template('waiting_page.html')
+    cur = db.cursor()
+    cur.execute("SELECT * FROM drivers WHERE vehicle = ?", (order_vehicle_type,))
+    available_drivers = cur.fetchall()
+    print(f"Available drivers: {available_drivers}")
+    map = folium.Map(location=order_origin, zoom_start=15)
+    folium.Marker(order_origin, tooltip=f'<strong>Origin</strong><br>{order_origin[0]}, {order_origin[1]}').add_to(map)
+    folium.Marker(order_destination, tooltip=f'<strong>Destination</strong><br>{order_destination[0]}, {order_destination[1]}').add_to(map)
+    return render_template('waiting_page.html', client_id=current_user.id, map=map._repr_html_(), available_drivers=available_drivers, order_id=order_id)
 
-    
+@clients.route('/ongoing_ride/<order_id>')
+@login_required
+def client_ongoing_ride(order_id):
+    obj_id = ObjectId(order_id)
+    order = active_orders.find_one({'_id': obj_id})
+    driver_name = order['driver_name']
+    origin = order['origin']
+    destination = order['destination']
+    distance = order['distance']
+    return render_template('client_ongoing_ride.html', driver_name=driver_name, origin=origin, destination=destination, distance=distance, order_id=order_id, client_username=current_user.username)
+
+
 

@@ -1,7 +1,7 @@
 import sqlite3
 from flask import g, render_template, redirect, url_for, flash, session
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField
+from wtforms import StringField, PasswordField, SubmitField, SelectField
 from wtforms.validators import DataRequired, Length, Email, EqualTo, ValidationError
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from . import authentication
@@ -57,7 +57,7 @@ def create_clients_table(db):
 
 def create_drivers_table(db):
     cursor = db.cursor()
-    cursor.execute('CREATE TABLE IF NOT EXISTS drivers (id INTEGER PRIMARY KEY, username TEXT, password TEXT, email TEXT, first_name TEXT, last_name TEXT, phone_number TEXT, vehicle TEXT, license_plate TEXT, available BOOLEAN)')
+    cursor.execute('CREATE TABLE IF NOT EXISTS drivers (id INTEGER PRIMARY KEY, username TEXT, password TEXT, email TEXT, first_name TEXT, last_name TEXT, phone_number TEXT, vehicle TEXT, license_plate TEXT)')
     db.commit()
     cursor.close()
 
@@ -93,14 +93,14 @@ class ClientRegistrationForm(FlaskForm):
     submit = SubmitField('Sign Up')
 
 class DriverRegistrationForm(FlaskForm):
-    username = StringField('Username', validators=[DataRequired(), Length(min=4, max=20)])
+    username = StringField('Username', validators=[DataRequired(), Length(min=1, max=20)])
     password = PasswordField('Password', validators=[DataRequired(), Length(min=4, max=20)])
     confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
     email = StringField('Email', validators=[DataRequired(), Email(), Length(min=4, max=20)])
-    first_name = StringField('First Name', validators=[DataRequired(), Length(min=4, max=20)])
-    last_name = StringField('Last Name', validators=[DataRequired(), Length(min=4, max=20)])
-    phone_number = StringField('Phone Number', validators=[DataRequired(), Length(min=4, max=20)])
-    vehicle = StringField('Vehicle', validators=[DataRequired(), Length(min=4, max=20)])
+    first_name = StringField('First Name', validators=[DataRequired(), Length(min=1, max=20)])
+    last_name = StringField('Last Name', validators=[DataRequired(), Length(min=2, max=20)])
+    phone_number = StringField('Phone Number', validators=[DataRequired(), Length(min=8, max=20)])
+    vehicle = SelectField('Vehicle', choices=[('car', 'Car'), ('van', 'Van'), ('horse', 'Horse-drawn carriage')])
     license_plate = StringField('License Plate', validators=[DataRequired(), Length(min=4, max=20)])
     submit = SubmitField('Sign Up')
     
@@ -120,7 +120,7 @@ def login():
     if current_user.is_authenticated:
         if current_user.is_driver:
             return redirect(url_for('drivers.driver_home'))
-        #return redirect(url_for('clients.home'))
+        return redirect(url_for('clients.home'))
     return render_template('login.html')
 
 @authentication.route('/login/client', methods=['GET', 'POST'])
@@ -166,10 +166,9 @@ def driver_login():
         cursor.execute('SELECT * FROM drivers WHERE username = ? AND password = ?', (username, password))
         user = cursor.fetchone()
         if user:
+            print(user)
             user_obj = User(user[0], user[1], user[2], user[3], is_driver=True)
             session['is_driver'] = True
-            # set driver availability to true
-            cursor.execute('UPDATE drivers SET available = True WHERE id = ?', (user[0],))
             login_user(user_obj)
             return redirect(url_for('drivers.driver_home'))
         else:
@@ -219,7 +218,7 @@ def driver_sign_up():
         if current_user:
             flash('User already exists', 'danger')
         else:
-            cursor.execute('INSERT INTO drivers (username, password, email, first_name, last_name, phone_number, vehicle, license_plate, available) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', (username, password, email, first_name, last_name, phone_number, vehicle, license_plate, False))
+            cursor.execute('INSERT INTO drivers (username, password, email, first_name, last_name, phone_number, vehicle, license_plate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', (username, password, email, first_name, last_name, phone_number, vehicle, license_plate))
             db.commit()
             cursor.close()
             flash('User added successfully', 'success')
@@ -232,12 +231,6 @@ def driver_sign_up():
 @authentication.route('/logout')
 @login_required
 def logout():
-    if session.get('is_driver', False):
-        # set driver availability to false
-        db = get_db()
-        cursor = db.cursor()
-        cursor.execute('UPDATE drivers SET available = False WHERE id = ?', (current_user.id,))
-        cursor.close()
-        session.pop('is_driver')
+    session.pop('is_driver', None)
     logout_user()
     return redirect(url_for('authentication.login'))
