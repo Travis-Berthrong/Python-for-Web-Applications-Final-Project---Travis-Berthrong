@@ -8,6 +8,7 @@ from flask_cors import CORS
 from apscheduler.schedulers.background import BackgroundScheduler
 import time
 import logging
+from flask_mail import Mail
 
 from pymongo import MongoClient
 
@@ -16,6 +17,12 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.config['MAIL_SERVER']=os.getenv('MAIL_SERVER')
+app.config['MAIL_PORT'] = os.getenv('MAIL_PORT')
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
 
 db = MongoClient(os.getenv('MONGO_URI'))['uber']
 active_orders = db['active_orders']
@@ -39,6 +46,7 @@ socketio = SocketIO(app=app, Engineio_logger=True, logger=True)
 CORS(app, resources={r"/clients/socket.io/*": {"origins": "http://localhost:5000"}})
 app.wsgi_app = ResponseTimeMiddleware(app.wsgi_app)
 logging.basicConfig(filename='app.log', level=logging.INFO)
+mail = Mail(app)
 
 def fetch_order_status(order_id, user_id):
     try:
@@ -84,6 +92,11 @@ def handle_send_message(data):
     print(f"Sending message to room {data['room_id']}")
     message = data['message']
     socketio.emit('receive_message', {'message': message}, namespace='/ride_chat', to=data['room_id'])
+
+@socketio.on('ride_end', namespace='/ride_chat')
+def handle_ride_end(data):
+    print(f"Ending ride chat for room {data['room_id']}")
+    socketio.emit('ride_ended', namespace='/ride_chat', to=data['room_id'])
 
 @app.teardown_appcontext
 def close_connection(exception):

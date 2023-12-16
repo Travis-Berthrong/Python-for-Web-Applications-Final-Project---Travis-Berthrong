@@ -17,9 +17,16 @@
                     console.log(data);
                     updateChat(data.message);
                 });
+                socket.on('ride_ended', function(data){
+                    console.log("Ride ended");
+                    socket.disconnect();
+                    window.location.href = "{{ url_for('clients.ride_invoice', order_id=order_id) }}";
+                });
+
                 function updateChat(message) {
                     $('#chat').append("<li>" + message + "</li>");
                 }
+
                 $('#send').click(function(){
                     var message = '{{ client_username }}: ' +  $('#message').val();
                     socket.emit('send_message', {'message': message, "room_id": "{{ order_id }}"});

@@ -17,6 +17,12 @@
                     console.log(data);
                     updateChat(data.message);
                 });
+
+                socket.on('ride_ended', function(data){
+                    console.log("Ride ended");
+                    socket.disconnect();
+                    window.location.href = "{{ url_for('drivers.ride_summary', str_order_id=order_id) }}";
+                });
                 function updateChat(message) {
                     $('#chat').append("<li>" + message + "</li>");
                 }
@@ -25,27 +31,28 @@
                     socket.emit('send_message', {'message': message, "room_id": "{{ order_id }}"});
                     $('#message').val('');
                 });
-            });
-        </script>
-        <script type="text/javascript">
+
                 $('#end_ride').click(function(){
-                    var current_date = new Date();
-                    var current_time = current_date.getHours() + ":" + current_date.getMinutes();
+                    console.log("Ending ride");
+                    var time = new Date();
+                    time = time.getHours() + ":" + time.getMinutes()
                     $.ajax({
                         type: "POST",
                         url: "{{ url_for('drivers.end_ride') }}",
                         contentType: "application/json",
-                        data: JSON.stringify({'order_id': '{{ order_id }}'}),
+                        data: JSON.stringify({'order_id': '{{ order_id }}', 'time': time}),
                         dataType: "json",
                         success: function (response) {
                             console.log(response);
-                            location.href = "{{ url_for('drivers.ride_summary', str_order_id=order_id) }}";
+                            socket.emit('ride_end', {'room_id': '{{ order_id }}'})
                         },
                         error: function (err) {
                             console.log(err);
                         }
                     });
                 });
+            });
+
         </script>
 
     </head>

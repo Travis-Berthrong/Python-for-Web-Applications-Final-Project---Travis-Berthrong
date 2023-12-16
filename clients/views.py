@@ -1,7 +1,9 @@
 import json
-from flask import Flask, render_template, url_for, redirect, request, session, jsonify, g, current_app
+import logging
+from flask import Flask, flash, render_template, request, session, jsonify, g
 import folium
 from flask_login import login_required, current_user
+from flask_mail import Message
 from dotenv import load_dotenv
 import os
 from pymongo import MongoClient
@@ -11,6 +13,7 @@ from bson import ObjectId
 import sqlite3
 
 
+from app import mail
 from . import clients
 
 load_dotenv()
@@ -53,6 +56,17 @@ def get_db():
     if db is None:
         db = g._database = sqlite3.connect('uber_application.db')
     return db
+
+def send_email(message_content, message_title):
+    try:
+        msg = Message(message_title, sender='recipe-website@noreply.com', recipients=[current_user.email])
+        msg.body = message_content
+        mail.send(msg)
+        flash(f'Your invoice has been sent to {current_user.email}', 'success')
+    except Exception as e:
+        flash('There was an error sending your confirmation!', 'danger')
+        flash(str(e), 'danger')
+        logging.info(f"SMTP Exception: {str(e)}")
 
 @clients.route('/home')
 @login_required
@@ -142,5 +156,19 @@ def client_ongoing_ride(order_id):
     distance = order['distance']
     return render_template('client_ongoing_ride.html', driver_name=driver_name, origin=origin, destination=destination, distance=distance, order_id=order_id, client_username=current_user.username)
 
-
+@clients.route('/ride_invoice/<order_id>')
+@login_required
+def ride_invoice(order_id):
+    obj_id = ObjectId(order_id)
+    order = active_orders.find_one({'_id': obj_id})
+    driver_name = order['driver_name']
+    vehicle = order['vehicle_type']
+    origin = order['origin']
+    destination = order['destination']
+    distance = round(order['distance'], 2)
+    departure_time = order['departure_time']
+    completed_at = order['completed_at']
+    price = round(order['price'], 2)
+    send_email(f"Your ride from {origin} to {destination} has been completed. Your driver was {driver_name}. The total price was {price}.", "Your ride invoice")
+    return render_template('ride_invoice.html', driver_name=driver_name, vehicle=vehicle, origin=origin, destination=destination, distance=distance, price=price, order_id=order_id, client_name=current_user.username, departure_time=departure_time, completed_at=completed_at)
 
