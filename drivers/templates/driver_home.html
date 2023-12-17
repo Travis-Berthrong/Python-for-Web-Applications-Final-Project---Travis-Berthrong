@@ -100,14 +100,14 @@
         <div class="container mt-3 justify-content-center">
             <h2>Welcome {{ driver_name }},</h2>
             <h3>There are {{ num_orders }} available orders</h3>
+            {% if not sent_location %}
+                <script>
+                fetchLocation();
+                </script>
+            {% endif %}
         </div>
         <div class="container mt-3">
             <div id="map" style="width: 100%; max-width: 800px;">
-                {% if not sent_location %}
-                    <script>
-                    fetchLocation();
-                    </script>
-                {% endif %}
                 {{ map|safe}}
             </div>
         </div>

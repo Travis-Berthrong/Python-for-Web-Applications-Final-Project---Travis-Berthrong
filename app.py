@@ -51,14 +51,19 @@ mail = Mail(app)
 def fetch_order_status(order_id, user_id):
     try:
         order = active_orders.find_one({'_id': ObjectId(order_id)})
+        if order is None:
+            logging.info(f"Order {order_id} not found")
+            scheduler.remove_job(fetch_order_status)
+            return
         order_status = order['status']
-        print(f"Order status: {order_status}")
+        logging.info(f"Order {order_id} status: {order_status}")
         if order_status == 'accepted':
             order_driver = order['driver_name']
-            scheduler.remove_all_jobs()
+            scheduler.remove_job(fetch_order_status)
             socketio.emit("order_accepted", {'order_id': order_id, "order_driver": order_driver}, namespace='/clients', to=user_id)
     except Exception as e:
-        print("fetch_order_status error: ", e)
+        logging.info(f"Exception: {str(e)}")
+        scheduler.remove_job(fetch_order_status)
 
 @app.route('/')
 def index():
@@ -69,33 +74,33 @@ def client_connect():
     print('Client connected')
     room_id = current_user.id
     join_room(room_id)
-    print(f"Client {current_user.id} joined room {current_user.id}")
+    logging.info(f"Client {current_user.username} connected to room {room_id}")
 
 @socketio.on('start_status_check', namespace='/clients')
 def start_status_check(data):
-    print(f"Starting status check for order {data['order_id']}")
+    logging.info(f"Starting status check for order {data['order_id']}")
     scheduler.add_job(fetch_order_status, 'interval', seconds=15, args=[data['order_id'], current_user.id])
     scheduler.start()
 
 @socketio.on('connect', namespace='/ride_chat')
 def handle_connect():
-    print('connected to ride chat')
+    logging.info(f"{current_user.username} connected to ride chat")
 
 @socketio.on('join', namespace='/ride_chat')
 def handle_join(data):
     room = data['room_id']
     join_room(room)
-    print(f'{current_user.username} joined room ', room)
+    logging.info(f"{current_user.username} joined room {room}")
 
 @socketio.on('send_message', namespace='/ride_chat')
 def handle_send_message(data):
-    print(f"Sending message to room {data['room_id']}")
+    logging.info(f"Sending message to room {data['room_id']}")
     message = data['message']
     socketio.emit('receive_message', {'message': message}, namespace='/ride_chat', to=data['room_id'])
 
 @socketio.on('ride_end', namespace='/ride_chat')
 def handle_ride_end(data):
-    print(f"Ending ride chat for room {data['room_id']}")
+    logging.info(f"Ride ended in room {data['room_id']}")
     socketio.emit('ride_ended', namespace='/ride_chat', to=data['room_id'])
 
 @app.teardown_appcontext
@@ -103,6 +108,7 @@ def close_connection(exception):
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
+    session.clear()
     
 
 if __name__ == '__main__':

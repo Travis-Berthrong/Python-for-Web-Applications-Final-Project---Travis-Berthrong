@@ -24,6 +24,9 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
+    """
+    This function loads a user given their user_id. It checks if the user is a driver or a client and fetches the user from the appropriate table.
+    """
     db = get_db()
     cursor = db.cursor()
     is_driver = session.get('is_driver', False)
@@ -40,6 +43,9 @@ def load_user(user_id):
     return None
 
 def get_db():
+    """
+    This function gets the database connection. If the connection does not exist, it creates one and also creates the clients and drivers tables.
+    """
     db = getattr(g, '_database', None)
     if db is None:
         db = g._database = sqlite3.connect('./uber_application.db')
@@ -47,21 +53,29 @@ def get_db():
         create_drivers_table(db)
     return db
 
-# need to change tables to ensure unique Ids
 def create_clients_table(db):
+    """
+    This function creates the clients table in the database if it does not exist.
+    """
     cursor = db.cursor()
     cursor.execute('CREATE TABLE IF NOT EXISTS clients (id INTEGER PRIMARY KEY, username TEXT, password TEXT, email TEXT)') 
-    cursor.execute
     db.commit()
     cursor.close()
 
 def create_drivers_table(db):
+    """
+    This function creates the drivers table in the database if it does not exist.
+    """
     cursor = db.cursor()
     cursor.execute('CREATE TABLE IF NOT EXISTS drivers (id INTEGER PRIMARY KEY, username TEXT, password TEXT, email TEXT, first_name TEXT, last_name TEXT, phone_number TEXT, vehicle TEXT, license_plate TEXT)')
     db.commit()
     cursor.close()
 
 def unique_username(form, field):
+    """
+    This function checks if the username is unique across both the clients and drivers tables.
+    If the username already exists, it raises a ValidationError.
+    """
     db = get_db()
     cursor = db.cursor()
     cursor.execute(f'SELECT * FROM clients WHERE username = ?', (field.data,))
@@ -72,8 +86,13 @@ def unique_username(form, field):
         raise ValidationError('Username already exists')
     
 def unique_email(form, field):
+    """
+    This function checks if the email is unique across either the clients or drivers table, depending on the form.
+    If the email already exists, it raises a ValidationError.
+    """
     # check if request originated from client or driver sign up form
     is_driver = form.vehicle.data is not None
+
     db = get_db()
     cursor = db.cursor()
     if is_driver:
@@ -109,14 +128,15 @@ class LoginForm(FlaskForm):
     password = PasswordField('Password', validators=[DataRequired(), Length(min=4, max=20)])
     submit = SubmitField('Login')
 
-"""
-Route: /login
-Methods: GET, POST
-This route first displays two buttons, one for logging in as a client and one for logging in as a driver.
-When the user clicks on one of the buttons, the login form for that type of user is displayed.
-If the form is valid, the user is logged in and redirected to the home page."""
 @authentication.route('/login', methods=['GET', 'POST'])
 def login():
+    """
+    Route: /login
+    Methods: GET, POST
+    This route first displays two buttons, one for logging in as a client and one for logging in as a driver.
+    When the user clicks on one of the buttons, the login form for that type of user is displayed.
+    If the form is valid, the user is logged in and redirected to the home page.
+    """
     if current_user.is_authenticated:
         if current_user.is_driver:
             return redirect(url_for('drivers.driver_home'))
@@ -125,6 +145,11 @@ def login():
 
 @authentication.route('/login/client', methods=['GET', 'POST'])
 def client_login():
+    """
+    Route for client login. If the client is already logged in, they are redirected to the home page.
+    If the form is submitted and the username and password match a record in the database, the client is logged in and redirected to the home page.
+    If the username and password do not match, an error message is flashed.
+    """
     if current_user.is_authenticated:
         if current_user.is_driver:
             return redirect(url_for('drivers.driver_home'))
@@ -152,6 +177,11 @@ def client_login():
 
 @authentication.route('/login/driver', methods=['GET', 'POST'])
 def driver_login():
+    """
+    Route for driver login. If the driver is already logged in, they are redirected to the home page.
+    If the form is submitted and the username and password match a record in the database, the driver is logged in and redirected to the home page.
+    If the username and password do not match, an error message is flashed.
+    """
     if current_user.is_authenticated:
         if current_user.is_driver:
             return redirect(url_for('drivers.driver_home'))
@@ -178,6 +208,11 @@ def driver_login():
 
 @authentication.route('/sign_up/client', methods=['GET', 'POST'])
 def client_sign_up():
+    """
+    Route for client sign up. If the form is submitted and the username does not already exist in the database,
+    a new client is created and the user is redirected to the login page.
+    If the username already exists, an error message is flashed.
+    """
     form = ClientRegistrationForm()
     if form.validate_on_submit():
         username = form.username.data
@@ -200,6 +235,11 @@ def client_sign_up():
 
 @authentication.route('/sign_up/driver', methods=['GET', 'POST'])
 def driver_sign_up():
+    """
+    Route for driver sign up. If the form is submitted and the username does not already exist in the database,
+    a new driver is created and the user is redirected to the login page.
+    If the username already exists, an error message is flashed.
+    """
     form = DriverRegistrationForm()
     if form.validate_on_submit():
         username = form.username.data
@@ -225,12 +265,14 @@ def driver_sign_up():
             return redirect(url_for('authentication.driver_login'))
     return render_template('driver_sign_up.html', form=form)
 
-# Route: /logout
-# Requires login
-# This route logs the user out and redirects them to the home page.
 @authentication.route('/logout')
 @login_required
 def logout():
+    """
+    Route: /logout
+    Requires login
+    This route logs the user out and redirects them to the home page.
+    """
     session.pop('is_driver', None)
     logout_user()
     return redirect(url_for('authentication.login'))

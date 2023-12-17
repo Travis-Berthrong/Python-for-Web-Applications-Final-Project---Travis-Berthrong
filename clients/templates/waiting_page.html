@@ -32,16 +32,6 @@
             window.location.href = "/ongoing_ride/" + data.order_id;
         });
 
-        // socket.on(message, function(data){
-        //     console.log(data);
-        //     var message = JSON.parse(data);
-        //     if (message.order_info) {
-        //         alert("Driver " + message.order_info.order_driver + " has accepted your request!"); 
-        //         window.location.href = "/clients/ongoing_ride/" + message.order_info.order_id;
-        //     }
-        //     console.log(message);
-        // });
-
         socket.on('test', function(data){
             console.log(data);
         });
@@ -54,7 +44,7 @@
             <div class="collapse navbar-collapse" id="navbarSupportedContent">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0"></ul>
                 <form class="d-flex">
-                    <a class="navbar-brand" href="{{ url_for('clients.home') }}">Return Home</a>
+                    <a class="navbar-brand" href="{{ url_for('clients.cancel_order', str_order_id=order_id) }}">Cancel Order</a>
                     <a class="btn btn-outline-success" href="{{ url_for('authentication.logout') }}">Logout</a>
                 </form>
             </div>
