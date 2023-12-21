@@ -9,6 +9,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import time
 import logging
 from flask_mail import Mail
+from flask_debugtoolbar import DebugToolbarExtension
 
 from pymongo import MongoClient
 
@@ -27,6 +28,7 @@ app.config['MAIL_USE_SSL'] = False
 db = MongoClient(os.getenv('MONGO_URI'))['uber']
 active_orders = db['active_orders']
 
+toolbar = DebugToolbarExtension(app)
 scheduler = BackgroundScheduler()
 
 class ResponseTimeMiddleware(object):
@@ -46,6 +48,7 @@ socketio = SocketIO(app=app, Engineio_logger=True, logger=True)
 CORS(app, resources={r"/clients/socket.io/*": {"origins": "http://localhost:5000"}})
 app.wsgi_app = ResponseTimeMiddleware(app.wsgi_app)
 logging.basicConfig(filename='app.log', level=logging.INFO)
+logger = logging.getLogger('performance_logger')
 mail = Mail(app)
 
 def fetch_order_status(order_id, user_id):
@@ -108,9 +111,7 @@ def close_connection(exception):
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
-    session.clear()
     
-
 if __name__ == '__main__':
     from authentication import authentication
     from clients import clients

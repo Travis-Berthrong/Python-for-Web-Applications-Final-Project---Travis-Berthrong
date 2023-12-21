@@ -70,7 +70,7 @@ def driver_home():
                 <strong>Price: </strong>{round(price,2)}<br>
                 <input type="submit" value="Accept">
             </form>"""
-        marker = folium.Marker(origin, popup=order_marker_html, tooltip='<strong>Awaiting order</strong>')
+        marker = folium.Marker(origin, popup=order_marker_html, tooltip='<strong>Awaiting order</strong>', icon=folium.Icon(color='green', icon='car', prefix='fa'))
         marker.add_to(map)
 
     # Add a marker for the driver's location
